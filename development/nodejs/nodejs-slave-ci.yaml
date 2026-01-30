@@ -1,0 +1,11 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  node:
+    uses: my-org/ci-templates/.github/workflows/node-ci.yml@v1
+    with:
+      node-version: '20'
