@@ -20,7 +20,7 @@ jobs:
 
   build-image:
     needs: python-ci
-    uses: jouw-org/ci-templates/.github/workflows/docker_buildkit-ci.yaml@main
+    uses: CI-pipe/platform/workflows/docker_buildkit-ci.yaml@main
     with:
       image-name: myproject/myapp
       registry: harbor.example.com
