@@ -1,0 +1,11 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  node:
+    uses: CI-pipe/development/nodejs/nodejs-slave-ci.yaml@v1
+    with:
+      node-version: '20'
