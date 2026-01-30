@@ -6,6 +6,6 @@ on:
 
 jobs:
   node:
-    uses: my-org/ci-templates/.github/workflows/node-ci.yml@v1
+    uses: CI-pipe/development/nodejs/nodejs-slave-ci.yaml@v1
     with:
       node-version: '20'
