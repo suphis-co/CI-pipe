@@ -1,26 +1,38 @@
-name: Secure Build & Sign
+name: BuildKit Secure Image Builder
 
 on:
-  push:
-    branches: ["main"]
-  pull_request:
+  workflow_call:
+    inputs:
+      image-name:
+        type: string
+        required: true
+      registry:
+        type: string
+        required: true
+      dockerfile:
+        type: string
+        default: "Dockerfile"
+      context:
+        type: string
+        default: "."
+    secrets:
+      HARBOR_USERNAME:
+        required: true
+      HARBOR_PASSWORD:
+        required: true
 
 jobs:
-  build-and-sign:
-    name: Build OCI Image with BuildKit and sign with Cosign
+  buildkit:
     runs-on: ubuntu-latest
 
     permissions:
+      id-token: write
       contents: read
-      id-token: write   # nodig voor keyless cosign
-      packages: write
 
     env:
-      REGISTRY: harbor.example.com
-      IMAGE_NAME: myproject/myapp
-      TAG_SHA: ${{ github.sha }}
-      TAG_LATEST: latest
       BUILDKIT_ADDR: unix:///tmp/buildkit.sock
+      IMAGE: ${{ inputs.registry }}/${{ inputs.image-name }}
+      TAG_SHA: ${{ github.sha }}
 
     steps:
       - name: Checkout source
@@ -38,43 +50,30 @@ jobs:
           nohup buildkitd --rootless --addr $BUILDKIT_ADDR > buildkit.log 2>&1 &
           sleep 3
 
-      - name: Login to Harbor (for BuildKit)
+      - name: Login to Harbor
         run: |
           echo "${{ secrets.HARBOR_PASSWORD }}" | buildctl \
             --addr $BUILDKIT_ADDR \
-            login $REGISTRY \
-            --username ${{ secrets.HARBOR_USERNAME }} \
+            login ${{ inputs.registry }} \
+            --username "${{ secrets.HARBOR_USERNAME }}" \
             --password-stdin
 
-      - name: Build and push image (SHA tag)
+      - name: Build & Push Image (SHA tag)
         run: |
           buildctl --addr $BUILDKIT_ADDR build \
             --frontend dockerfile.v0 \
-            --local context=. \
-            --local dockerfile=. \
-            --opt filename=Dockerfile \
-            --output type=registry,ref=$REGISTRY/$IMAGE_NAME:$TAG_SHA,compression=gzip
+            --local context=${{ inputs.context }} \
+            --local dockerfile=${{ inputs.context }} \
+            --opt filename=${{ inputs.dockerfile }} \
+            --output type=registry,ref=$IMAGE:$TAG_SHA,compression=gzip
 
-      - name: Tag as latest (optional second build or retag in registry)
-        run: |
-          buildctl --addr $BUILDKIT_ADDR build \
-            --frontend dockerfile.v0 \
-            --local context=. \
-            --local dockerfile=. \
-            --opt filename=Dockerfile \
-            --output type=registry,ref=$REGISTRY/$IMAGE_NAME:$TAG_LATEST,compression=gzip
-
-      # Cosign installeren (keyless)
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3.5.0
         with:
           cosign-release: 'v2.4.0'
 
-      # Image signeren met keyless Cosign (OIDC van GitHub)
       - name: Sign image with Cosign (keyless)
         env:
           COSIGN_EXPERIMENTAL: "1"
         run: |
-          cosign sign \
-            --yes \
-            $REGISTRY/$IMAGE_NAME:$TAG_SHA
+          cosign sign --yes $IMAGE:$TAG_SHA
