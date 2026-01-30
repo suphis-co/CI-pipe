@@ -6,9 +6,6 @@ on:
       image-name:
         type: string
         required: true
-      registry:
-        type: string
-        required: true
       dockerfile:
         type: string
         default: "Dockerfile"
@@ -30,8 +27,9 @@ jobs:
       contents: read
 
     env:
+      REGISTRY: harbor.example.com
       BUILDKIT_ADDR: unix:///tmp/buildkit.sock
-      IMAGE: ${{ inputs.registry }}/${{ inputs.image-name }}
+      IMAGE: ${{ env.REGISTRY }}/${{ inputs.image-name }}
       TAG_SHA: ${{ github.sha }}
 
     steps:
@@ -54,7 +52,7 @@ jobs:
         run: |
           echo "${{ secrets.HARBOR_PASSWORD }}" | buildctl \
             --addr $BUILDKIT_ADDR \
-            login ${{ inputs.registry }} \
+            login $REGISTRY \
             --username "${{ secrets.HARBOR_USERNAME }}" \
             --password-stdin
 
