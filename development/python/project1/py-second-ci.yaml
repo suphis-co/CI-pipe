@@ -1,11 +1,29 @@
-name: CI
+name: Python CI
 
 on:
   push:
+    branches: ["main"]
   pull_request:
 
 jobs:
-  node:
-    uses: CI-pipe/platform/workflows/python-ci.yaml@v1
+  python-ci:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: echo "Python CI checks hier..."
+
+  build-image:
+    needs: python-ci
+    uses: jouw-org/ci-templates/.github/workflows/docker_buildkit-ci.yaml@main
     with:
-      python-version: '3.11'
+      image-name: myproject/myapp
+      registry: harbor.example.com
+    secrets:
+      HARBOR_USERNAME: ${{ secrets.HARBOR_USERNAME }}
+      HARBOR_PASSWORD: ${{ secrets.HARBOR_PASSWORD }}
