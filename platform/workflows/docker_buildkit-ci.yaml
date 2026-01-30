@@ -1,0 +1,80 @@
+name: Secure Build & Sign
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  build-and-sign:
+    name: Build OCI Image with BuildKit and sign with Cosign
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write   # nodig voor keyless cosign
+      packages: write
+
+    env:
+      REGISTRY: harbor.example.com
+      IMAGE_NAME: myproject/myapp
+      TAG_SHA: ${{ github.sha }}
+      TAG_LATEST: latest
+      BUILDKIT_ADDR: unix:///tmp/buildkit.sock
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install BuildKit
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y buildkit
+          mkdir -p ~/.config/buildkit
+          echo 'rootless = true' > ~/.config/buildkit/buildkitd.toml
+
+      - name: Start BuildKit daemon (rootless)
+        run: |
+          nohup buildkitd --rootless --addr $BUILDKIT_ADDR > buildkit.log 2>&1 &
+          sleep 3
+
+      - name: Login to Harbor (for BuildKit)
+        run: |
+          echo "${{ secrets.HARBOR_PASSWORD }}" | buildctl \
+            --addr $BUILDKIT_ADDR \
+            login $REGISTRY \
+            --username ${{ secrets.HARBOR_USERNAME }} \
+            --password-stdin
+
+      - name: Build and push image (SHA tag)
+        run: |
+          buildctl --addr $BUILDKIT_ADDR build \
+            --frontend dockerfile.v0 \
+            --local context=. \
+            --local dockerfile=. \
+            --opt filename=Dockerfile \
+            --output type=registry,ref=$REGISTRY/$IMAGE_NAME:$TAG_SHA,compression=gzip
+
+      - name: Tag as latest (optional second build or retag in registry)
+        run: |
+          buildctl --addr $BUILDKIT_ADDR build \
+            --frontend dockerfile.v0 \
+            --local context=. \
+            --local dockerfile=. \
+            --opt filename=Dockerfile \
+            --output type=registry,ref=$REGISTRY/$IMAGE_NAME:$TAG_LATEST,compression=gzip
+
+      # Cosign installeren (keyless)
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3.5.0
+        with:
+          cosign-release: 'v2.4.0'
+
+      # Image signeren met keyless Cosign (OIDC van GitHub)
+      - name: Sign image with Cosign (keyless)
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+        run: |
+          cosign sign \
+            --yes \
+            $REGISTRY/$IMAGE_NAME:$TAG_SHA
