@@ -4,7 +4,7 @@ platform/**              @suphis-co/platform-team
 
 # === Development/ wordt expliciet NIET door Platform-team beheerd ===
 # Wijs development toe aan een ander team (bijv. app-team, repo-maintainers, core-ontwikkelaars)
-#development/**           @suphis-co/dev-team
+development/**           @suphis-co/dev-team
 
 # (optioneel) fallback voor alle overige paden
 # *                          @suphis-co/repo-maintainers
